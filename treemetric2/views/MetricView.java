@@ -33,18 +33,19 @@ import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.part.ViewPart;
 
-import treemetric2.ImplMetric;
+import treemetric2.NumberOfDefinesMetric;
+import treemetric2.ProjectManager;
+import treemetric2.ResourceHandler;
 import treemetric2.Metric;
 import treemetric2.MetricData;
 import treemetric2.Node;
 
-public class SampleView extends ViewPart {
+public class MetricView extends ViewPart {
 
   public static final String ID = "treemetric2.views.SampleView";
   private TableViewer viewer;
-  private Action action1;
-  private Action action2;
-  private Action doubleClickAction;
+  private ResourceHandler resource = new ResourceHandler();
+  private ProjectManager projectManager = new ProjectManager();
 
   class ViewLabelProvider extends LabelProvider implements ITableLabelProvider {
     public String getColumnText(Object obj, int index) {
@@ -63,58 +64,77 @@ public class SampleView extends ViewPart {
   /**
    * The constructor.
    */
-  public SampleView() {
+  public MetricView() {
   }
-  
 
-  
   public class TreeContentProvider implements ITreeContentProvider {
     @Override
     public boolean hasChildren(Object element) {
-        return false;
+      return false;
     }
 
     @Override
     public Object getParent(Object element) {
-        return null;
+      return null;
     }
 
     @Override
     public Object[] getElements(Object inputElement) {
-        return ArrayContentProvider.getInstance().getElements(inputElement);
+      return ArrayContentProvider.getInstance().getElements(inputElement);
     }
 
     @Override
     public Object[] getChildren(Object parentElement) {
-        return null;
+      return null;
     }
-}
-  
-  
-  
+  }
+
+  private void init() {
+    ResourceHandler.init();
+  }
+
   public void createPartControl(Composite parent) {
-    TreeViewer viewer = new TreeViewer(parent);
-//    viewer.setContentProvider(new TreeContentProvider());
-    viewer.setContentProvider(new TreeContentProvider() { 
-      @Override 
-      public boolean hasChildren(Object element) {
-        Node<Metric> elem = (Node<Metric>)element;
-        return  !elem.isLeaf();
+    
+    
+
+    Action action = new Action("Refresh Table", Action.AS_PUSH_BUTTON) {
+      @Override
+      public void run() {
+        init();
+        //viewer.refresh();
       }
+
+    };
+    IActionBars actionBars = getViewSite().getActionBars();
+    IMenuManager dropDownMenu = actionBars.getMenuManager();
+    IToolBarManager toolBar = actionBars.getToolBarManager();
+    dropDownMenu.add(action);
+    toolBar.add(action);
+
+    TreeViewer viewer = new TreeViewer(parent);
+    // viewer.setContentProvider(new TreeContentProvider());
+    viewer.setContentProvider(new TreeContentProvider() {
+      @Override
+      public boolean hasChildren(Object element) {
+        Node<Metric> elem = (Node<Metric>) element;
+        return !elem.isLeaf();
+      }
+
       @Override
       public Object getParent(Object element) {
-        Node<Metric> elem = (Node<Metric>)element;
+        Node<Metric> elem = (Node<Metric>) element;
         if (elem.isRoot()) {
           return null;
         }
-        return elem.getParent(); 
+        return elem.getParent();
       }
+
       @Override
       public Object[] getChildren(Object parentElement) {
-        System.out.println("**************** + " + parentElement.getClass().getName() + " *********");
-        Node<Metric> elem = ((Node<Metric>)parentElement);
+        Node<Metric> elem = ((Node<Metric>) parentElement);
         return elem.getChildren().toArray();
       }
+
       public Object[] getElements(Object inputElements) {
         return getChildren(inputElements);
       }
@@ -123,10 +143,10 @@ public class SampleView extends ViewPart {
     viewer.getTree().setLinesVisible(true);
     TreeViewerColumn viewerColumn = new TreeViewerColumn(viewer, SWT.NONE);
     viewerColumn.getColumn().setWidth(300);
-    viewerColumn.getColumn().setText("Names");
+    viewerColumn.getColumn().setText("Metric Name");
     viewerColumn.setLabelProvider(new ColumnLabelProvider() {
       public String getText(Object element) {
-        Node<Metric> m  = (Node<Metric>)element;
+        Node<Metric> m = (Node<Metric>) element;
         return m.getData().getName();
       }
     });
@@ -135,8 +155,10 @@ public class SampleView extends ViewPart {
     viewerColumn.getColumn().setText("Value");
     viewerColumn.setLabelProvider(new ColumnLabelProvider() {
       public String getText(Object element) {
-        System.out.println("**************** + " + element.getClass().getName() + " *********");
-        Node<Metric> m = (Node<Metric>)element;
+        Node<Metric> m = (Node<Metric>) element;
+        if (m.getData().getValue() < -0) {
+          return (m.getData().getValue() == -1 ? "Assumption" : "Guarantee");
+        }
         return m.getData().getValue().toString();
       }
     });
@@ -144,89 +166,6 @@ public class SampleView extends ViewPart {
 
     GridLayoutFactory.fillDefaults().generateLayout(parent);
   }
-
-  private void hookContextMenu() {
-    MenuManager menuMgr = new MenuManager("#PopupMenu");
-    menuMgr.setRemoveAllWhenShown(true);
-    menuMgr.addMenuListener(new IMenuListener() {
-      public void menuAboutToShow(IMenuManager manager) {
-        SampleView.this.fillContextMenu(manager);
-      }
-    });
-    Menu menu = menuMgr.createContextMenu(viewer.getControl());
-    viewer.getControl().setMenu(menu);
-    getSite().registerContextMenu(menuMgr, viewer);
-  }
-
-  private void contributeToActionBars() {
-    IActionBars bars = getViewSite().getActionBars();
-    fillLocalPullDown(bars.getMenuManager());
-    fillLocalToolBar(bars.getToolBarManager());
-  }
-
-  private void fillLocalPullDown(IMenuManager manager) {
-    manager.add(action1);
-    manager.add(new Separator());
-    manager.add(action2);
-  }
-
-  private void fillContextMenu(IMenuManager manager) {
-    manager.add(action1);
-    manager.add(action2);
-    // Other plug-ins can contribute there actions here
-    manager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
-  }
-
-  private void fillLocalToolBar(IToolBarManager manager) {
-    manager.add(action1);
-    manager.add(action2);
-  }
-
-  private void makeActions() {
-    action1 = new Action() {
-      public void run() {
-        showMessage("Action 1 executed");
-      }
-    };
-    action1.setText("Action 1");
-    action1.setToolTipText("Action 1 tooltip");
-    action1.setImageDescriptor(
-        PlatformUI.getWorkbench().getSharedImages().getImageDescriptor(ISharedImages.IMG_OBJS_INFO_TSK));
-
-    action2 = new Action() {
-      public void run() {
-        showMessage("Action 2 executed");
-      }
-    };
-    action2.setText("Action 2");
-    action2.setToolTipText("Action 2 tooltip");
-    action2.setImageDescriptor(
-        PlatformUI.getWorkbench().getSharedImages().getImageDescriptor(ISharedImages.IMG_OBJS_INFO_TSK));
-    doubleClickAction = new Action() {
-      public void run() {
-        ISelection selection = viewer.getSelection();
-        Object obj = ((IStructuredSelection) selection).getFirstElement();
-        showMessage("Double-click detected on " + obj.toString());
-      }
-    };
-  }
-
-  private void hookDoubleClickAction() {
-    viewer.addDoubleClickListener(new IDoubleClickListener() {
-      public void doubleClick(DoubleClickEvent event) {
-        doubleClickAction.run();
-      }
-    });
-  }
-
-  private void showMessage(String message) {
-    MessageDialog.openInformation(viewer.getControl().getShell(), "Sample View", message);
-  }
-
-  /**
-   * Passing the focus request to the viewer's control.
-   */
   public void setFocus() {
-    viewer.getControl().setFocus();
   }
 }
